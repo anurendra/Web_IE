@@ -33,6 +33,7 @@ const urls = [
 ]
 var bounding_boxes_file = fs.createWriteStream('./bounding_boxes.txt');
 var index_file = fs.createWriteStream('./index.txt');
+var category_records = fs.createWriteStream('./category_records.txt');
 var PImage = require('pureimage');
 const MAX_WIDTH = 1280
 const MAX_HEIGHT = 1280
@@ -42,176 +43,143 @@ async function bounding_boxes_of_leaf_nodes(page, price, title) {
   //await page.exposeFunction('lev', lev);
   console.log('before entering race...')
   return Promise.race([page.evaluate(async (price, title) => {
-                               // let onlyUnique = function(value, index, self) {
-                               //   return self.indexOf(value) === index;
-                               // }
-                              // const title_words = title.split(" ");
-                               if (price.split('.')[1] === '00') {
-                                 price = price.split('.')[0].substring(1)
-                               } else {
-                                 price = price.substring(1)
-                               }
-                               let alternative_price = price;
-                               let tmp = 0;
-                               console.log('checking if the price has an alternative...');
-                               while ((tmp = alternative_price.indexOf(',')) !== -1) {
-                                 alternative_price = alternative_price.substring(0, tmp) + price.substring(tmp+1)
-                               }
-                               if (alternative_price === price) {
-                                 alternative_price = undefined
-                               }
-                               console.log(price, alternative_price, title);
+                             // let onlyUnique = function(value, index, self) {
+                             //   return self.indexOf(value) === index;
+                             // }
+                             const title_words = title.trim().split(" ");
+                             if (price.split('.')[1] === '00') {
+                               price = price.split('.')[0].substring(1)
+                             } else {
+                               price = price.substring(1)
+                             }
+                             let alternative_price = price;
+                             let tmp = 0;
+                             console.log('checking if the price has an alternative...');
+                             while ((tmp = alternative_price.indexOf(',')) !== -1) {
+                               alternative_price = alternative_price.substring(0, tmp) + price.substring(tmp+1)
+                             }
+                             if (alternative_price === price) {
+                               alternative_price = undefined
+                             }
+                             console.log(price, alternative_price, title);
 
-                               const nodes = document.querySelectorAll("*");
-                               let bounding_boxes = [];
+                             const nodes = document.querySelectorAll("*");
+                             let bounding_boxes = [];
 
-                               let max_price_area = 0;
-                               let price_idx = -1;
+                             let max_price_area = 0;
+                             let price_idx = -1;
 
-                               // let max_title_font_size = 0;
-                               // let max_common_words = 0;
-                               // let min_title_dist = title.length;
-                               // let title_idx = -1;
-                               // let title_text = null;
+                             let max_title_font_size = 0;
+                             let max_jIdx = 0;
+                             // let min_title_dist = title.length;
+                             let title_idx = -1;
+                             // let title_text = null;
 
-                               let elem_idx = 0;
+                             let elem_idx = 0;
 
-                               for (let elem of nodes) {
-                                 let isLeaf = true;
-                                 if (elem.hasChildNodes()) {
-                                   for (var i = 0; i < elem.childNodes.length; i++) {
-                                     if (elem.childNodes[i].nodeType == 1) {
-                                       isLeaf = false; break;
-                                     }
-                                   }
-                                 }
-                                 if (isLeaf && elem.textContent && elem.textContent.length) {
-                                   const {top, left, bottom, right} = elem.getBoundingClientRect();
-                                   const box = {'x': left, 'y': top, 'width': right - left, 'height': bottom - top};
-                                   if (box.width > 1 && box.height > 1 && box.x >= 0 && box.y >= 0 && box.y + box.height <= 1280) {
-                                     if ((elem.textContent.includes(price) || (alternative_price && elem.textContent.includes(alternative_price))) && elem.textContent.replace(/\s/g, '').length <= price.length + 5) {
-                                       let area = box.width * box.height;
-                                       if (area > max_price_area) {
-                                         max_price_area = area;
-                                         price_idx = elem_idx;
-                                       }
-                                     }
-                                     //
-
-                                     // if (elem.textContent.length <= 2 * title.length) {
-                                     //   let text_words = elem.textContent.split(" ").filter(onlyUnique);
-                                     //   let count = 0;
-                                     //   for (let word of text_words) {
-                                     //     if (title_words.indexOf(word) !== -1) {
-                                     //       count ++;
-                                     //     }
-                                     //   }
-                                     //   if (count > max_common_words) {
-                                     //     max_common_words = count;
-                                     //     title_idx = elem_idx;
-                                     //     max_title_font_size = parseFloat(window.getComputedStyle(elem, null).getPropertyValue('font-size'));
-                                     //   } else if (count == max_common_words) {
-                                     //     let font_size = parseFloat(window.getComputedStyle(elem, null).getPropertyValue('font-size'));
-                                     //     if (font_size > max_title_font_size) {
-                                     //       max_title_font_size = font_size;
-                                     //       max_common_words = count;
-                                     //       title_idx = elem_idx;
-                                     //     }
-                                     //   }
-                                       // let font_size = parseFloat(window.getComputedStyle(elem, null).getPropertyValue('font-size'));
-                                       // if (font_size > max_title_font_size) {
-                                       //   max_title_font_size = font_size;
-                                       //   title_idx = elem_idx;
-                                       //   title_text = elem.textContent.replace(/\s/g,'');
-                                       // } else if (font_size == max_title_font_size) {
-                                       //   let dist1 = await window.lev(title, title_text);
-                                       //   let dist2 = await window.lev(title, elem.textContent.replace(/\s/g,''));
-                                       //   if (dist2 < dist1) {
-                                       //     title_idx = elem_idx;
-                                       //     title_text = elem.textContent.replace(/\s/g,'');
-                                       //   }
-                                       // }
-
-                                       // dist = await window.lev(elem.textContent.replace(/\s/g,''), title);
-                                       // //console.log(dist)
-                                       // if (dist < min_title_dist) {
-                                       //   min_title_dist = dist;
-                                       //   title_idx = elem_idx;
-                                       // }
-                                     //}
-
-                                     bounding_boxes.push(box);
-                                     elem_idx ++;
+                             for (let elem of nodes) {
+                               let isLeaf = true;
+                               if (elem.hasChildNodes()) {
+                                 for (var i = 0; i < elem.childNodes.length; i++) {
+                                   if (elem.childNodes[i].nodeType == 1) {
+                                     isLeaf = false; break;
                                    }
                                  }
                                }
-                               // if (price_idx === -1 || title_idx === -1) {
-                               //   return null
-                               // }
-                               if (price_idx === -1) {
-                                 console.log('no price found')
-                                 return null;
-                               }
-                               // let max_index = 0
-                               // //Perhaps also consider font size.
-                               // for (let i = 0; i < potential_match_num; i++) {
-                               //   if (bounding_boxes[i].width * bounding_boxes[i].height >
-                               //      bounding_boxes[max_index].width * bounding_boxes[max_index].height) {
-                               //        max_index = i;
-                               //      }
-                               // }
-                               // if (max_index !== 0) {
-                               //   const tmp = bounding_boxes[0];
-                               //   bounding_boxes[0] = bounding_boxes[max_index];
-                               //   bounding_boxes[max_index] = tmp;
-                               // }
-                               //console.log(min_title_dist)
-
-                               if (price_idx !== 0) {
-                                 const tmp = bounding_boxes[0];
-                                 bounding_boxes[0] = bounding_boxes[price_idx];
-                                 bounding_boxes[price_idx] = tmp;
-                               }
-                               // if (title_idx !== 1) {
-                               //   const tmp = bounding_boxes[1];
-                               //   bounding_boxes[1] = bounding_boxes[title_idx];
-                               //   bounding_boxes[title_idx] = tmp;
-                               // }
-
-                               const images = document.getElementsByTagName('img');
-                               let max_image_idx = -1;
-                               let max_image_size = 0;
-                               for (let img of images) {
-                                 if (img.textContent.length) {
-                                  console.log('image has text content: ', img.textContent.length)
-                                  return null;
-                                 }
-                                 const {top, left, bottom, right} = img.getBoundingClientRect();
+                               if (isLeaf && elem.textContent && elem.textContent.length) {
+                                 const {top, left, bottom, right} = elem.getBoundingClientRect();
                                  const box = {'x': left, 'y': top, 'width': right - left, 'height': bottom - top};
                                  if (box.width > 1 && box.height > 1 && box.x >= 0 && box.y >= 0 && box.y + box.height <= 1280) {
-                                   let image_size = box.width * box.height;
-                                   if (image_size > max_image_size) {
-                                     max_image_size = image_size;
-                                     max_image_idx = elem_idx;
+                                   let trimedTextContent = elem.textContent.trim()
+                                   if ((trimedTextContent.includes(price) || (alternative_price && trimedTextContent.includes(alternative_price))) && trimedTextContent.replace(/\s/g, '').length <= price.length + 5) {
+                                     let area = box.width * box.height;
+                                     if (area > max_price_area) {
+                                       max_price_area = area;
+                                       price_idx = elem_idx;
+                                     }
                                    }
+                                   //
+
+                                   if (trimedTextContent.length <= 2 * title.length) {
+                                     console.log(trimedTextContent)
+                                     let text_words = trimedTextContent.split(" ")
+                                     let count = 0;
+                                     for (let word of text_words) {
+                                       if (title_words.indexOf(word) !== -1) {
+                                         count ++;
+                                       }
+                                     }
+                                     let jIdx = count / (text_words.length + title_words.length);
+                                     if (jIdx > max_jIdx) {
+                                       console.log('jIdx > max_jIdx', jIdx);
+                                       max_jIdx = jIdx;
+                                       title_idx = elem_idx;
+                                       max_title_font_size = parseFloat(window.getComputedStyle(elem, null).getPropertyValue('font-size'));
+                                     } else if (jIdx == max_jIdx && max_jIdx > 0) {
+                                       console.log('jIdx == max_jIdx', jIdx);
+                                       let font_size = parseFloat(window.getComputedStyle(elem, null).getPropertyValue('font-size'));
+                                       if (font_size > max_title_font_size) {
+                                         max_title_font_size = font_size;
+                                         title_idx = elem_idx;
+                                       }
+                                     }
+                                   }
+
                                    bounding_boxes.push(box);
-                                   elem_idx++;
+                                   elem_idx ++;
                                  }
                                }
+                             }
+                             console.log(price_idx, title_idx)
+                             if (price_idx === -1 || title_idx === -1) {
+                               return null
+                             }
 
-                               if (max_image_idx === -1) {
-                                 console.log('no image found')
-                                 return null;
+                             if (price_idx !== 0) {
+                               const tmp = bounding_boxes[0];
+                               bounding_boxes[0] = bounding_boxes[price_idx];
+                               bounding_boxes[price_idx] = tmp;
+                             }
+                             if (title_idx !== 1) {
+                               const tmp = bounding_boxes[1];
+                               bounding_boxes[1] = bounding_boxes[title_idx];
+                               bounding_boxes[title_idx] = tmp;
+                             }
+
+                             const images = document.getElementsByTagName('img');
+                             let max_image_idx = -1;
+                             let max_image_size = 0;
+                             for (let img of images) {
+                               if (img.textContent.length) {
+                                console.log('image has text content: ', img.textContent.length)
+                                return null;
                                }
-                               if (max_image_idx !== 2) {
-                                 const tmp = bounding_boxes[2];
-                                 bounding_boxes[2] = bounding_boxes[max_image_idx];
-                                 bounding_boxes[max_image_idx] = tmp;
+                               const {top, left, bottom, right} = img.getBoundingClientRect();
+                               const box = {'x': left, 'y': top, 'width': right - left, 'height': bottom - top};
+                               if (box.width > 1 && box.height > 1 && box.x >= 0 && box.y >= 0 && box.y + box.height <= 1280) {
+                                 let image_size = box.width * box.height;
+                                 if (image_size > max_image_size) {
+                                   max_image_size = image_size;
+                                   max_image_idx = elem_idx;
+                                 }
+                                 bounding_boxes.push(box);
+                                 elem_idx++;
                                }
-                               return bounding_boxes;
-                             }, price, title), new Promise(function(resolve, reject) {
-                                  setTimeout(resolve, 1000, null);
-                              })]);
+                             }
+
+                             if (max_image_idx === -1) {
+                               console.log('no image found')
+                               return null;
+                             }
+                             if (max_image_idx !== 2) {
+                               const tmp = bounding_boxes[2];
+                               bounding_boxes[2] = bounding_boxes[max_image_idx];
+                               bounding_boxes[max_image_idx] = tmp;
+                             }
+                             return bounding_boxes;
+                           }, price, title), new Promise(function(resolve, reject) {
+                                setTimeout(resolve, 1000, null);
+                           })]);
 }
 
 // returns DOM tree root with all its descendents
@@ -325,18 +293,35 @@ function saveDomTree(dom_tree_path, dom_tree) {
 
 function imagesHaveLoaded() { return Array.from(document.images).every((i) => i.complete); }
 
-async function generate_dataset(browser, page, url, pic_name_offset) {
+async function gotoUntilSuccess(page, url) {
   try {
-    let offset = 0
-
     await page.goto(url, options={'waitUntil': 'networkidle0', 'timeout': 10000})
-    await page.waitForFunction(imagesHaveLoaded);
+    await page.waitForSelector('.ZGFjDb')
+    await page.waitForSelector('.AGVhpb')
+    return await page.$$('.ZGFjDb')
+  } catch(e) {
+    console.error(e);
+    return -1;
+  }
+}
+
+async function generate_dataset(url, pic_name_offset) {
+  try {
+    let browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], ignoreHTTPSErrors: true, dumpio: false, headless: false, defaultViewport: {width: 1280, height: 1280}});
+    let offset = 0;
     //await page.waitFor(3)
 
+    let next_page_url = url;
     while (true) {
-      await page.waitForSelector('.ZGFjDb')
-      const box_elements = await page.$$('.ZGFjDb')
-      await page.waitForSelector('.AGVhpb')
+      let page = await browser.newPage()
+      console.log(next_page_url)
+      let box_elements = await gotoUntilSuccess(page, next_page_url)
+      while (box_elements === -1) {
+        await browser.close();
+        browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], ignoreHTTPSErrors: true, dumpio: false, headless: false, defaultViewport: {width: 1280, height: 1280}});
+        page = await browser.newPage()
+        box_elements = await gotoUntilSuccess(page, next_page_url)
+      }
       const content_elements = await Promise.all(box_elements.map(async e => {
         return await e.$$('.AGVhpb , .O8U6h span , .HZNWUb b')
       }));
@@ -348,6 +333,9 @@ async function generate_dataset(browser, page, url, pic_name_offset) {
       console.log(contents)
       console.log(contents.length)
 
+      let bounding_box_data_arr = []
+      let index_data_arr = []
+      let start_over = false;
       for (let i = offset; i < offset + content_elements.length; i++) {
         if (fs.existsSync(`./screenshots/${i + pic_name_offset}.png`)) {
           fs.unlinkSync(`./screenshots/${i + pic_name_offset}.png`);
@@ -357,16 +345,21 @@ async function generate_dataset(browser, page, url, pic_name_offset) {
         }
         if (contents[i - offset].length < 3) { //Which means the price is of the type $xx/mo
           if (contents[i - offset].length < 2) { //Which means something is not loaded properly
-            console.log('page not loaded correctly')
-            return -1;
+            console.log('page not loaded correctly, starting over')
+            start_over = true;
+            break;
           }
-          continue
+          continue;
         }
         const content = content_elements[i - offset]
         console.log(i + pic_name_offset)
         await content[0].click()
         await page.waitFor(1000)
         const boxes = await page.$$('.sh-dp__cont')
+        if (boxes.length === 0) {
+          console.log('boxes.length === 0');
+          continue;
+        }
         const outer_box = boxes[boxes.length - 1]
         const main_site_element = await outer_box.$('.shntl.translate-details-content')
         if (main_site_element) {
@@ -391,6 +384,7 @@ async function generate_dataset(browser, page, url, pic_name_offset) {
               await new_page.goto(main_site_url, options={'waitUntil': 'networkidle0', 'timeout': 10000})
               await new_page.waitForFunction(imagesHaveLoaded, options={'timeout': 10000});
               await new_page.keyboard.press('Escape');
+              await new_page.waitFor(1000);
         //      pageLoaded = true
             } catch(e) {
                console.log('timeout, proceed anyway')
@@ -400,7 +394,13 @@ async function generate_dataset(browser, page, url, pic_name_offset) {
             //await new_page.waitFor(3)
             console.log('finding bounding boxes...')
             //bounding_boxes = await bounding_boxes_of_leaf_nodes(new_page, contents[i - offset][2].substring(1, contents[i - offset][2].length -3));
-            bounding_boxes = await bounding_boxes_of_leaf_nodes(new_page, contents[i - offset][2], contents[i - offset][0]);
+            bounding_boxes = undefined;
+            try {
+              bounding_boxes = await bounding_boxes_of_leaf_nodes(new_page, contents[i - offset][2], contents[i - offset][0]);
+            } catch(e) {
+              console.error(e);
+              console.log('error in finding bounding boxes');
+            }
             if (!bounding_boxes) {
               //await new_page.screenshot({'path': `./screenshots/${i + pic_name_offset}.png`, 'clip': {'x':0, 'y':0, 'width':MAX_WIDTH, 'height':MAX_HEIGHT}})
               console.log('bouding_boxes: ', bounding_boxes);
@@ -412,65 +412,80 @@ async function generate_dataset(browser, page, url, pic_name_offset) {
             //   return await new_page.screenshot({'path': `./leaves/${i}.png`, 'clip': box})
             // }))
             console.log('screenshotting...')
-            await new_page.screenshot({'path': `./screenshots/${i + pic_name_offset}.png`, 'clip': {'x':0, 'y':0, 'width':MAX_WIDTH, 'height':MAX_HEIGHT}})
-            await new_page.screenshot({'path': `./leaves/${i + pic_name_offset}.png`, 'clip': bounding_boxes[0]})
+            try { //In extermely rare cases scrennshot can generate errors as well.
+              await new_page.screenshot({'path': `./screenshots/${i + pic_name_offset}.png`, 'clip': {'x':0, 'y':0, 'width':MAX_WIDTH, 'height':MAX_HEIGHT}})
+              await new_page.screenshot({'path': `./leaves/${i + pic_name_offset}.png`, 'clip': bounding_boxes[0]})
+            } catch(e) {
+              console.error(e);
+              await new_page.close()
+              continue
+            }
 
             let screenshot_file = fs.createReadStream(`./screenshots/${i + pic_name_offset}.png`)
             let img = await PImage.decodePNGFromStream(screenshot_file)
             var ctx = img.getContext('2d');
             ctx.fillStyle = 'rgba(255,0,0, 0.5)';
             console.log([bounding_boxes[0].x, bounding_boxes[0].y, bounding_boxes[0].width, bounding_boxes[0].height])
-          //  console.log([bounding_boxes[1].x, bounding_boxes[1].y, bounding_boxes[1].width, bounding_boxes[1].height])
+            console.log([bounding_boxes[1].x, bounding_boxes[1].y, bounding_boxes[1].width, bounding_boxes[1].height])
             console.log([bounding_boxes[2].x, bounding_boxes[2].y, bounding_boxes[2].width, bounding_boxes[2].height])
             ctx.fillRect(bounding_boxes[0].x, bounding_boxes[0].y, bounding_boxes[0].width, bounding_boxes[0].height);
-          //  ctx.fillRect(bounding_boxes[1].x, bounding_boxes[1].y, bounding_boxes[1].width, bounding_boxes[1].height);
+            ctx.fillRect(bounding_boxes[1].x, bounding_boxes[1].y, bounding_boxes[1].width, bounding_boxes[1].height);
             ctx.fillRect(bounding_boxes[2].x, bounding_boxes[2].y, bounding_boxes[2].width, bounding_boxes[2].height);
             let modified_screenshot_file = fs.createWriteStream(`./screenshots/${i + pic_name_offset}_rect.png`)
             await PImage.encodePNGToStream(img, modified_screenshot_file)
             modified_screenshot_file.end()
 
           //  saveDomTree(`./dom/${i}.json`, await getDomTree(new_page))
-
-            await new_page.close()
             bounding_box_data = []
             for (let bounding_box of bounding_boxes) {
               bounding_box_data.push([bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height]);
             }
-            bounding_boxes_file.write(`${i + pic_name_offset} ${bounding_box_data.toString()}\n`)
-            //index_file.write(`${i} ${contents[i - offset][0].toString()},${contents[i - offset][2].toString()}\n`)
-            index_file.write(`${i + pic_name_offset} ${contents[i - offset][2].toString()}\n`)
+            bounding_box_data_arr.push({'idx': i + pic_name_offset, 'data': bounding_box_data.toString()});
+            index_data_arr.push({'idx': i + pic_name_offset, 'data': contents[i - offset][2].toString(), 'url': new_page.url()});
+            await new_page.close()
         }
       }
-      offset += 20;
-      next_button = await page.$('#pnnext.pn')
-      if(!next_button) {
-        console.log('no next page, return')
-        break
+      if (!start_over) {
+        for (let bounding_box of bounding_box_data_arr) {
+              bounding_boxes_file.write(`${bounding_box['idx']} ${bounding_box['data']}\n`)
+        }
+        for (let index_data of index_data_arr) {
+            index_file.write(`${index_data['idx']} ${index_data['data']} ${index_data['url']}\n`)
+        }
+        offset += 20;
+        next_button = await page.$('#pnnext.pn')
+        if(!next_button) {
+          console.log('no next page, return')
+          await page.close();
+          break;
+        }
+        next_page_url = await page.evaluate((element) => element.href, next_button)
+        await page.close();
+      } else {
+        await browser.close();
+        browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], ignoreHTTPSErrors: true, dumpio: false, headless: false, defaultViewport: {width: 1280, height: 1280}});
       }
-      //break
-      next_page_url = await page.evaluate((element) => element.href, next_button)
-      console.log(next_page_url)
-      await page.goto(next_page_url)
     }
+    await browser.close();
     return offset;
   } catch (e) {
     console.log('This is an error that needs attention!!!!')
     console.error(e);
+    await browser.close();
+    //await page.close();
     return -1;
   }
 }
 
 (async () => {
-  let browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], ignoreHTTPSErrors: true, dumpio: false, headless: false, defaultViewport: {width: 1280, height: 1280}});
   try {
     let pic_name_offset = 0;
-    let page = await browser.newPage();
-    let ret = 0;
     for (url of urls) {
-      while ((ret = await generate_dataset(browser, page, url, pic_name_offset)) === -1) {
-        await browser.close()
-        browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], ignoreHTTPSErrors: true, dumpio: false, headless: false, defaultViewport: {width: 1280, height: 1280}});
-        page = await browser.newPage();
+      category_records.write(`${pic_name_offset} ${url}\n`)
+      let ret = await generate_dataset(url, pic_name_offset)
+      if (ret === -1) {
+        console.log('generate_dataset errored out.')
+        break;
       }
       console.log('ret = ', ret)
       pic_name_offset += ret
@@ -478,11 +493,11 @@ async function generate_dataset(browser, page, url, pic_name_offset) {
   } catch (error) {
     console.error(error);
   } finally {
-    await browser.close()
     bounding_boxes_file.end()
     index_file.end()
+    category_records.end()
   }
-  await browser.close()
   bounding_boxes_file.end()
   index_file.end()
+  category_records.end()
 })();
